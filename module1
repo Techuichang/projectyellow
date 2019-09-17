@@ -174,7 +174,7 @@ def handle_data():
     print(d)
     if d!={}:       #d为空集时不动作
         bd['danmucaiji2'].insert(d)
-        q2.put(True) #顺序读取，当q2得到内容后，交易指令控制模块才开始
+        q_buy.put(True) #顺序读取，当q2得到内容后，交易指令控制模块才开始
         
 def fuc():
     while True:
@@ -186,12 +186,12 @@ def fuc2():
         handle_data()
         
 q = Queue()
-q2 = Queue()
+q_buy = Queue()
 q3 = Queue()  
 websocket.enableTrace(True)
 conn = pymongo.MongoClient('localhost', 27017)
 bd = conn['projectyellow_1']
-col = bd['danmucaiji2']
+col = bd[u'投票结果']
 ws = websocket.WebSocketApp(websocket_url,
                             on_message=on_message,
                             on_error=on_error,
