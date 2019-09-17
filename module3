@@ -1,0 +1,70 @@
+import time
+import pymongo
+from queue import Queue
+import tushare as ts
+from apscheduler.schedulers.background import BackgroundScheduler
+
+
+client=pymongo.MongoClient('localhost',27017)
+cl=client[u'交易'][u'交易结果']
+cl2=client[u'交易'][u'投票结果']
+
+
+q_buy = Queue()
+q_deal=Queue()
+
+def timectrl():
+    
+    def job_getdata():
+        q_deal.get()
+        msg=list(cl.find().sort([('_id', -1)]).limit(1))
+        tem=list(msg[0])[1:]
+        
+'''[{'_id': ObjectId('5d7a13cfc2bbd8edf39902b7'),
+  'totalvalue': 100000000.0,
+  'longposition': 2866.0,
+  'shortposition': -17649.75,
+  'cash': 99979484.25,
+  'shortitemnum': {'600885': [199, 200, 300]},
+  'longitemnum': {'600298': [100]},
+  'shortprice': {'600885': [25.25, 25.25, 25.25]},
+  'longprice': {'600298': [28.66]}}]'''#list(msg)内容,cl
+        
+'''[{'_id': ObjectId('5d79358d57d473c19e758c05'),
+  '0': ['*600519', '3'],
+  '1': ['$300618', '2'],
+  '2': ['$000123', '1']}]        '''      #list(msg)内容,cl2
+         
+        
+    def job_buy():
+        q_buy.get()
+        msg=list(cl2.find().sort([('_id', -1)]).limit(1))
+        for i in list(msg[0])[1:]:                                 #通过list（msg[0]）得到字典msg[0]的key的list,不要头一位_id
+            if re.match(r'^\*', msg[0][i]):  
+                number=deal.cash//ts.get_realtime_quotes(msg[0][i][1:6]) #msg[0]得到字典 msg[0][i]得到key为i的value 去除第一位交易符号
+                number=number//4
+                time.sleep(0.2)
+                deal(msg[0][i][1:6]).buyfuc(number)
+            elif re.match(r'^\$', msg[0][i]):  
+                number=deal.cash//ts.get_realtime_quotes(msg[0][i][1:6])
+                number=number//4
+                time.sleep(0.2)
+                deal(msg[0][i][1:6]).buyfuc(number)
+            else:
+                print('Error')
+                    
+    def job_fuc2():
+        deal.liquidation()
+        
+    def job_fuc3()
+        deal.refresh()
+    
+    scheduler = BackgroundScheduler()
+
+    scheduler.add_job(job_func1, 'interval', seconds=15, start_date='2019-08-10 18:23:00',
+                      end_date='2019-08-10 18:25:00')
+    scheduler.add_job(job_func2, 'interval', seconds=5, start_date='2019-08-09 02:23:00' ,
+                      end_date='2019-08-09 02:23:00')
+    scheduler.add_job(job_func3, 'interval', seconds=2, start_date='2019-08-09 02:23:00' ,
+                      end_date='2019-08-09 02:23:00')
+    scheduler.start()
