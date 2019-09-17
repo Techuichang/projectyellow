@@ -1,0 +1,244 @@
+import tushare as ts
+import pandas as pd
+import numpy as np
+import time
+import pymongo
+#在清算方法和初始化方法中增加数据库通讯
+# 如何确定操作时的数量 done
+#
+# 只能sell一次因为sellfuc会把item清除
+# 把list换成numpy
+
+
+client=pymongo.MongoClient('localhost',27017)
+cl=client[u'交易'][u'交易结果_']
+
+
+
+
+
+class deal():                                                   #交易class 有买多买空功能（buyfuc、shortfuc）平多、平空功能（sellfuc、coverfuc)
+                                                                #通过init初始化方法获得self.name
+    def __init__(self, name):
+        self.name = name
+        print("(Initializing {})".format(self.name))            #在初始化过程使用cl对象和数据库通讯
+        
+        if list(cl.find())!=[]:                                #当集合不为空时，也就是之前有放交易结果，按之前的内容继续
+            tem=list(cl.find().sort([('_id', -1)]).limit(1))[0]          #获取集合中最后一个文档
+            deal.cash=tem['cash']                 #以list方式读取tem内容(使用dict会报错)，得到一个单元素的列表，该元素为一个字典，将文档的内容赋予deal类型中的类字段（目的是在工作中断后通过数据库中的内容恢复）
+            deal.longitemnum=tem['longitemnum']
+            deal.longprice=tem['longprice']
+            deal.shortitemnum=tem['shortitemnum']
+            deal.shortposition=tem['shortposition']
+            print('数据从数据库中恢复')
+        else:
+            print('数据库为空，将以cash=100000000开始')
+
+    def getprice(self):                                         #调用get_realtime_quotes,参数为实例的name，获得当前股价
+            result = ts.get_realtime_quotes(self.name)
+        
+            return result
+
+    @classmethod
+    def ouput(cls):                                             #通过使用类方法，输出 现金 多头项目、项目数量价格 空头项目、项目数量价格 多头价值 空头价值 全部价值
+        print(cls.cash)
+        print(cls.longitemnum)
+        print(cls.longprice)
+        print(cls.longposition)
+        print(cls.shortitemnum)
+        print(cls.shortprice)
+        print(cls.shortposition)
+        print(cls.totalvalue)
+
+    
+    
+    cash = 100000000
+
+    longposition = 0
+
+    shortposition = 0
+
+    totalvalue = 100000000
+
+    longitemnum = {}                                       #字典！多头项目数量 value为列表 多次交易的数量而成的列表 比如茅台 3手 4手{600519:[3,4....]}...(没有标记时间，只有数量，按成交先后排列)
+
+    shortitemnum = {}
+
+    longprice = {}                                         # 字典！多头项目价格 value为列表 多次交易的价格而成的列表 比如茅台 1000块 1100块{600519:[1000,1100...]}...(没有标记时间，只有价格，按先后排列)
+
+    shortprice = {}
+
+    def buyfuc(self, number):
+
+        #print self的话 s elf<__main__.deal object at 0xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx>
+
+        if self.getprice()==None:                   #如果股票代码不存在，tushare服务器返回none
+            
+            return 0
+        
+        
+        if self.name in deal.shortitemnum:          #如果对象名字存在于类字段的shortitemnum的keys中，首先将空单先进行平仓
+            self.coverfuc()
+
+        
+        price = float(self.getprice()['price'][0])   #因为返回的值是str 所以进行float
+
+        deal.cash = deal.cash - price * number              #现金减少，多头价值增加
+
+        deal.longposition = deal.longposition + price * number
+
+        if self.name in deal.longitemnum:                   #判断之前是否买过,name存在于itemnum的keys中 买过直接append价格 没有的话就新建空列表（下同
+            deal.longitemnum[self.name].append(number)
+        else:
+            deal.longitemnum[self.name] = []
+            deal.longitemnum[self.name].append(number)
+
+        if self.name in deal.longprice:
+            deal.longprice[self.name].append(price)
+        else:
+            deal.longprice[self.name] = []
+            deal.longprice[self.name].append(price)           ###可以合并为一次ifelse
+        deal.refresh()                                             #完成动作后刷新
+        
+        
+        
+    def shortfuc(self, number):
+        
+        if self.getprice()==None:
+            
+            return 0   
+        
+        
+        if self.name in deal.longitemnum:
+            self.sellfuc()
+
+        price = float(deal.getprice(self)['price'][0])
+
+        deal.cash = deal.cash - price * number
+
+        deal.shortposition = deal.shortposition - price * number       #因为空头价值为负债，负数，所以减去价格*数量
+
+        if self.name in deal.shortitemnum:
+            deal.shortitemnum[self.name].append(number)
+        else:
+            deal.shortitemnum[self.name] = []
+            deal.shortitemnum[self.name].append(number)
+
+        if self.name in deal.shortprice:
+            deal.shortprice[self.name].append(price)
+        else:
+            deal.shortprice[self.name] = []
+            deal.shortprice[self.name].append(price)
+        deal.refresh()
+
+    def sellfuc(self):                                          #sell为一次清仓 同理cover
+        if self.name in deal.longitemnum.keys():
+
+            price = float(deal.getprice(self)['price'][0])
+
+            number = sum(deal.longitemnum[self.name])
+
+            deal.cash = deal.cash + price * number
+
+            deal.longposition = deal.longposition - price * number
+
+            deal.longitemnum.pop(self.name)                     #sell后删除字典中的元素
+
+            deal.longprice.pop(self.name)
+            
+            deal.refresh()
+
+            print('sold')
+        else:
+
+            print('unsold')
+        deal.refresh()
+
+        return 0
+
+    def coverfuc(self):
+
+        if self.name in deal.shortitemnum.keys():
+
+            price = float(deal.getprice(self)['price'][0])
+
+            number = sum(deal.shortitemnum[self.name])
+
+            deal.cash = deal.cash + number * price
+
+            deal.shortposition = deal.shortposition + price * number
+
+            deal.shortitemnum.pop(self.name)
+
+            deal.shortprice.pop(self.name)
+            
+            deal.refresh()
+            
+            print('covered')
+
+        else:
+
+            print('uncovered')
+
+
+        return 0
+
+    @classmethod
+    def refresh(cls):                                   #刷新所持项目价格计算总价值 #原本形式为get_price因为该方法应该属于实例方法 再创建实例可能会出问题。。
+
+        tem = 0
+
+        tem2 = 0
+
+        for x in deal.longitemnum.keys():                              #按itemnum中的keys值也就是股票的代码进行循环
+            t=float(ts.get_realtime_quotes(x)['price'][0])
+            print(t,x)
+            tem = tem + t * sum(deal.longitemnum[x])                   #该股票以往的买入总数乘以价格得到当前多头价值
+
+        for y in deal.shortitemnum.keys():
+            h=float(ts.get_realtime_quotes(y)['price'][0])          
+            print(h,y)
+            tem2 = tem2 + h * sum(deal.shortitemnum[y])                 ##得到当前空头价值
+
+        deal.longposition = tem
+
+        print(tem)
+
+        deal.shortposition = -tem2                                     #当前空头价值为背负的债务，需要取负号
+
+        print(-tem2)
+        
+        margin=0                                                        ###做空股票交给券商的押金
+        
+        for j in deal.shortprice.keys():                                        
+            for x, y in zip(deal.shortprice[j], deal.shortitemnum[j]):   #做空股票冻结的保证金=数量*价格
+                margin = margin + x * y
+
+
+        deal.totalvalue = deal.cash + deal.longposition + (deal.shortposition+margin)+margin #现金+多头股票价值+做空盈利（保证金+空头价值）+保证金#当股票价格下降，比如到0，空头总价值降低，也就是背负的债务减少，债务变为0，带来盈利，因为空头价值为负，实际为（margin-shortposition）
+        
+        mydict = { "totalvalue": deal.totalvalue,
+                  "longposition": deal.longposition,
+                  "shortposition": deal.shortposition,
+                  "cash":deal.cash,
+                  'shortitemnum':deal.shortitemnum,
+                  'longitemnum':deal.longitemnum, 
+                  'shortprice':deal.shortprice, 
+                  'longprice':deal.longprice, 
+                 }
+        cl.insert_one(mydict)                                #在每次刷新时，将字段打包为字典，塞入数据库###需要注意是否可以塞入，格式问题###注意取出的内容可以以list处理
+        
+        cls.ouput()
+
+    @classmethod
+    def liquidation(cls):                                   #类方法 进行全部清仓
+        print('start liquidating')
+        x = list(cls.longitemnum.keys())
+        y = list(cls.shortitemnum.keys())
+        for i in x:
+            cls(i).sellfuc()                                #使用类字段的数值作为参数生成实例cls(i)再调用实例的清仓方法
+        for j in y:
+            cls(j).coverfuc()
+
+        cls.ouput()
+        print('end liquidating')
