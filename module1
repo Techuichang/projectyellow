@@ -2,7 +2,7 @@ import websocket
 import json
 import zlib
 import time
-import datetime, os
+import datetime
 from apscheduler.schedulers.background import BackgroundScheduler
 
 try:
