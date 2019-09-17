@@ -3,11 +3,7 @@ import pandas as pd
 import numpy as np
 import time
 import pymongo
-#在清算方法和初始化方法中增加数据库通讯
-# 如何确定操作时的数量 done
-#
-# 只能sell一次因为sellfuc会把item清除
-# 把list换成numpy
+
 
 
 client=pymongo.MongoClient('localhost',27017)
@@ -34,7 +30,7 @@ class deal():                                                   #交易class 有
         else:
             print('数据库为空，将以cash=100000000开始')
 
-    def getprice(self):                                         #调用get_realtime_quotes,参数为实例的name，获得当前股价
+    def getprice(self):                                         #调用get_realtime_quotes,参数为实例的name，获得当前股价，得到一个dataframe（包含买一卖一等）
             result = ts.get_realtime_quotes(self.name)
         
             return result
@@ -60,7 +56,7 @@ class deal():                                                   #交易class 有
 
     totalvalue = 100000000
 
-    longitemnum = {}                                       #字典！多头项目数量 value为列表 多次交易的数量而成的列表 比如茅台 3手 4手{600519:[3,4....]}...(没有标记时间，只有数量，按成交先后排列)
+    longitemnum = {}                                       #字典！多头项目数量 value为列表 多次交易的数量而成的列表 比如茅台 3手 4手{600519:[300,400....]}...(没有标记时间，只有数量，按成交先后排列)
 
     shortitemnum = {}
 
@@ -70,7 +66,6 @@ class deal():                                                   #交易class 有
 
     def buyfuc(self, number):
 
-        #print self的话 s elf<__main__.deal object at 0xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx>
 
         if self.getprice()==None:                   #如果股票代码不存在，tushare服务器返回none
             
@@ -226,7 +221,7 @@ class deal():                                                   #交易class 有
                   'shortprice':deal.shortprice, 
                   'longprice':deal.longprice, 
                  }
-        cl.insert_one(mydict)                                #在每次刷新时，将字段打包为字典，塞入数据库###需要注意是否可以塞入，格式问题###注意取出的内容可以以list处理
+        cl.insert_one(mydict)                                #在每次刷新时，将字段打包为字典，塞入数据库的交易结果columns
         
         cls.ouput()
 
