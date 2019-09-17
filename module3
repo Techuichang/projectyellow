@@ -41,12 +41,12 @@ def timectrl():
         msg=list(cl2.find().sort([('_id', -1)]).limit(1))
         for i in list(msg[0])[1:]:                                 #通过list（msg[0]）得到字典msg[0]的key的list,不要头一位_id
             if re.match(r'^\*', msg[0][i]):  
-                number=deal.cash//ts.get_realtime_quotes(msg[0][i][1:6]) #msg[0]得到字典 msg[0][i]得到key为i的value 去除第一位交易符号
+                number=deal.cash//float((ts.get_realtime_quotes(msg[0][i][1:6]))['price'][0]) #msg[0]得到字典 msg[0][i]得到key为i的value 去除第一位交易符号(功能为使用四分之一的现金进行投资
                 number=number//4
                 time.sleep(0.2)
                 deal(msg[0][i][1:6]).buyfuc(number)
             elif re.match(r'^\$', msg[0][i]):  
-                number=deal.cash//ts.get_realtime_quotes(msg[0][i][1:6])
+                number=deal.cash//float((ts.get_realtime_quotes(msg[0][i][1:6]))['price'][0])
                 number=number//4
                 time.sleep(0.2)
                 deal(msg[0][i][1:6]).buyfuc(number)
