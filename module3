@@ -16,7 +16,7 @@ q_deal=Queue()
 def timectrl():
     
     def job_getdata():
-        q_deal.get()
+        q_deal.get()              #数据给实时绘图显示的程序使用
         msg=list(cl.find().sort([('_id', -1)]).limit(1))
         tem=list(msg[0])[1:]
         
