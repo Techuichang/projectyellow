@@ -122,22 +122,22 @@ def handler(q,msg,debug=False):
                              'id':msg['info'][2][1],
                              'time': time.strftime("%m-%d %H:%M:%S", time.localtime(msg['info'][0][4]))}))
         #print(msg['info'][1],msg['info'][2][0],msg['info'][2][1])#测试
-        
-        def timectrl():
+
+def timectrl():
     def job_func1():
-        global flag  
+        global flag
         print('timectrl() working!',datetime.datetime.now().strftime('%H:%M:%S'))
         flag = False
         print('flag is off by timectrl now',datetime.datetime.now().strftime('%H:%M:%S'))
-    
+
     scheduler = BackgroundScheduler()
 
-    scheduler.add_job(job_func1, 
-                      'interval', 
-                      seconds=30, 
+    scheduler.add_job(job_func1,
+                      'interval',
+                      seconds=30,
                       start_date='2019-09-08 12:05:30',
                       end_date='2019-09-19 14:55:00')
-    
+
     # scheduler .add_job(job_func1, 'interval', seconds=5, start_date='2019-08-09 02:23:00' , end_date='2019-08-09 02:23:00')
     scheduler.start()
 
@@ -159,23 +159,23 @@ def tem_data():
     q3.put(Tem)
 
 
-def handle_data(): 
+def handle_data():
     Tem = q3.get()  # 从q3中取出tem并去除重复内容，存入数据库
     Tem_drop_dup = Tem['uid'].drop_duplicates() #去重得到无重复内容的series
     Tem_2 = Tem.iloc[Tem_drop_dup.index] #以series的index得到新的无重复uid内容的dataframe
     Tem=Tem_2['msg'].value_counts()     #将新的dataframe按msg中的数量多少得到series（投票内容msg为index和重复次数为value）
     Tem=Tem.head(3)
     tar=list(Tem.index)                 #拿出数量最多的三个投票结果和投票数量 index为投票内容，values为投票数量
-    tar2=list(Tem.values)              
+    tar2=list(Tem.values)
     d={}                               #用字典保存Tem前三值
     for i in range(len(tar)):
-        d[str(i)]=[tar[i],str(tar2[i])]          #mongodb列名称只接受string，所以把字典的key进行str  
+        d[str(i)]=[tar[i],str(tar2[i])]          #mongodb列名称只接受string，所以把字典的key进行str
         #d[str(i)+str(i)]=tar2[i]
     print(d)
     if d!={}:       #d为空集时不动作
         bd['danmucaiji2'].insert(d)
         q_buy.put(True) #顺序读取，当q2得到内容后，交易指令控制模块才开始
-        
+
 def fuc():
     while True:
         tem_data()
@@ -184,10 +184,11 @@ def fuc():
 def fuc2():
     while True:
         handle_data()
-        
+
 q = Queue()
-q_buy = Queue()
-q3 = Queue()  
+q_buy  = Queue()
+q_deal = Queue()
+q3 = Queue()
 websocket.enableTrace(True)
 conn = pymongo.MongoClient('localhost', 27017)
 bd = conn['projectyellow_1']
@@ -200,7 +201,9 @@ ws.on_open = on_open
 t1 = threading.Thread(target=ws.run_forever)
 t2 = threading.Thread(target=fuc)
 t3 = threading.Thread(target=fuc2)
-timectrl()
-t1.start()
-t2.start()
-t3.start()
+
+def program_start():
+    timectrl()
+    t1.start()
+    t2.start()
+    t3.start()
