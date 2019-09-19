@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 import time
 import pymongo
-
+import module1 as m1
 
 
 client=pymongo.MongoClient('localhost',27017)
@@ -18,7 +18,7 @@ class deal():                                                   #交易class 有
     def __init__(self, name):
         self.name = name
         print("(Initializing {})".format(self.name))            #在初始化过程使用cl对象和数据库通讯
-        
+
         if list(cl.find())!=[]:                                #当集合不为空时，也就是之前有放交易结果，按之前的内容继续
             tem=list(cl.find().sort([('_id', -1)]).limit(1))[0]          #获取集合中最后一个文档
             deal.cash=tem['cash']                 #以list方式读取tem内容(使用dict会报错)，得到一个单元素的列表，该元素为一个字典，将文档的内容赋予deal类型中的类字段（目的是在工作中断后通过数据库中的内容恢复）
@@ -32,7 +32,7 @@ class deal():                                                   #交易class 有
 
     def getprice(self):                                         #调用get_realtime_quotes,参数为实例的name，获得当前股价，得到一个dataframe（包含买一卖一等）
             result = ts.get_realtime_quotes(self.name)
-        
+
             return result
 
     @classmethod
@@ -46,8 +46,8 @@ class deal():                                                   #交易class 有
         print(cls.shortposition)
         print(cls.totalvalue)
 
-    
-    
+
+
     cash = 100000000
 
     longposition = 0
@@ -68,14 +68,14 @@ class deal():                                                   #交易class 有
 
 
         if self.getprice()==None:                   #如果股票代码不存在，tushare服务器返回none
-            
+
             return 0
-        
-        
+
+
         if self.name in deal.shortitemnum:          #如果对象名字存在于类字段的shortitemnum的keys中，首先将空单先进行平仓
             self.coverfuc()
 
-        
+
         price = float(self.getprice()['price'][0])   #因为返回的值是str 所以进行float
 
         deal.cash = deal.cash - price * number              #现金减少，多头价值增加
@@ -94,16 +94,16 @@ class deal():                                                   #交易class 有
             deal.longprice[self.name] = []
             deal.longprice[self.name].append(price)           ###可以合并为一次ifelse
         deal.refresh()                                             #完成动作后刷新
-        
-        
-        
+
+
+
     def shortfuc(self, number):
-        
+
         if self.getprice()==None:
-            
-            return 0   
-        
-        
+
+            return 0
+
+
         if self.name in deal.longitemnum:
             self.sellfuc()
 
@@ -140,7 +140,7 @@ class deal():                                                   #交易class 有
             deal.longitemnum.pop(self.name)                     #sell后删除字典中的元素
 
             deal.longprice.pop(self.name)
-            
+
             deal.refresh()
 
             print('sold')
@@ -166,9 +166,9 @@ class deal():                                                   #交易class 有
             deal.shortitemnum.pop(self.name)
 
             deal.shortprice.pop(self.name)
-            
+
             deal.refresh()
-            
+
             print('covered')
 
         else:
@@ -191,7 +191,7 @@ class deal():                                                   #交易class 有
             tem = tem + t * sum(deal.longitemnum[x])                   #该股票以往的买入总数乘以价格得到当前多头价值
 
         for y in deal.shortitemnum.keys():
-            h=float(ts.get_realtime_quotes(y)['price'][0])          
+            h=float(ts.get_realtime_quotes(y)['price'][0])
             print(h,y)
             tem2 = tem2 + h * sum(deal.shortitemnum[y])                 ##得到当前空头价值
 
@@ -202,27 +202,27 @@ class deal():                                                   #交易class 有
         deal.shortposition = -tem2                                     #当前空头价值为背负的债务，需要取负号
 
         print(-tem2)
-        
+
         margin=0                                                        ###做空股票交给券商的押金
-        
-        for j in deal.shortprice.keys():                                        
+
+        for j in deal.shortprice.keys():
             for x, y in zip(deal.shortprice[j], deal.shortitemnum[j]):   #做空股票冻结的保证金=数量*价格
                 margin = margin + x * y
 
 
         deal.totalvalue = deal.cash + deal.longposition + (deal.shortposition+margin)+margin #现金+多头股票价值+做空盈利（保证金+空头价值）+保证金#当股票价格下降，比如到0，空头总价值降低，也就是背负的债务减少，债务变为0，带来盈利，因为空头价值为负，实际为（margin-shortposition）
-        
+
         mydict = { "totalvalue": deal.totalvalue,
                   "longposition": deal.longposition,
                   "shortposition": deal.shortposition,
                   "cash":deal.cash,
                   'shortitemnum':deal.shortitemnum,
-                  'longitemnum':deal.longitemnum, 
-                  'shortprice':deal.shortprice, 
-                  'longprice':deal.longprice, 
+                  'longitemnum':deal.longitemnum,
+                  'shortprice':deal.shortprice,
+                  'longprice':deal.longprice,
                  }
         cl.insert_one(mydict)                                #在每次刷新时，将字段打包为字典，塞入数据库的交易结果columns
-        
+        m1.q_deal.put(True)
         cls.ouput()
 
     @classmethod
